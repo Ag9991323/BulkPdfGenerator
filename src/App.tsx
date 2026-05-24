@@ -141,6 +141,143 @@ function DropZone({ accept, label, sublabel, onChange, active }: DropZoneProps) 
   );
 }
 
+// ─── Range / Series Generator ───────────────────────────────────────────────
+function RangeGenerator() {
+  const [startNum, setStartNum] = useState('');
+  const [endNum, setEndNum] = useState('');
+
+  const buildRows = (start: number, end: number, gap: number) => {
+    const rows: [number, number][] = [];
+    let a = start;
+    while (a <= end) {
+      rows.push([a, Math.min(a + gap - 1, end)]);
+      a = a + gap;
+    }
+    return rows;
+  };
+
+  const toCSV = (rows: [number, number][]) =>
+    ['Start,End', ...rows.map((r) => r.join(','))].join('\n');
+
+  const handleGenerate = () => {
+    const start = parseInt(startNum, 10);
+    const end = parseInt(endNum, 10);
+    if (isNaN(start) || isNaN(end) || start > end) {
+      alert('Enter a valid start and end number (start ≤ end).');
+      return;
+    }
+    saveAs(
+      new Blob([toCSV(buildRows(start, end, 30))], { type: 'text/csv' }),
+      `series_gap30_${start}-${end}.csv`
+    );
+    saveAs(
+      new Blob([toCSV(buildRows(start, end, 180))], { type: 'text/csv' }),
+      `series_gap180_${start}-${end}.csv`
+    );
+  };
+
+  const ready = startNum !== '' && endNum !== '';
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    boxSizing: 'border-box',
+    border: '1px solid #cbd5e1',
+    borderRadius: 8,
+    padding: '10px 12px',
+    fontSize: 14,
+    outline: 'none',
+  };
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+          Series Range Generator
+        </h2>
+        <span
+          style={{
+            background: '#f3e8ff',
+            color: '#7c3aed',
+            fontSize: 12,
+            fontWeight: 600,
+            padding: '2px 10px',
+            borderRadius: 20,
+          }}
+        >
+          Gap 30 &amp; 180
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <div>
+          <label
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#475569',
+              display: 'block',
+              marginBottom: 6,
+            }}
+          >
+            Starting Number
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={startNum}
+            onChange={(e) => setStartNum(e.target.value)}
+            placeholder="e.g. 1"
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#475569',
+              display: 'block',
+              marginBottom: 6,
+            }}
+          >
+            Ending Number
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={endNum}
+            onChange={(e) => setEndNum(e.target.value)}
+            placeholder="e.g. 500"
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={handleGenerate}
+        disabled={!ready}
+        style={{
+          width: '100%',
+          border: 'none',
+          borderRadius: 10,
+          padding: '13px 24px',
+          fontSize: 15,
+          fontWeight: 700,
+          cursor: ready ? 'pointer' : 'not-allowed',
+          background: ready ? '#7c3aed' : '#94a3b8',
+          color: 'white',
+        }}
+      >
+        Download 2 CSV Files
+      </button>
+
+      <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 10, textAlign: 'center' }}>
+        File 1 — rows: [A, A+30] stepping start → end &nbsp;·&nbsp; File 2 — rows: [A, A+180]
+      </p>
+    </div>
+  );
+}
+
 // ─── App ───────────────────────────────────────────────────────────────────
 interface PairPath {
   qrPath: string | null;
@@ -533,6 +670,21 @@ export default function App() {
         <p style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', marginTop: 24 }}>
           All processing happens in your browser — no data leaves your device.
         </p>
+
+        {/* Divider */}
+        <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '32px 0' }} />
+
+        {/* Range Generator Section */}
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}>
+            Series Range Generator
+          </h2>
+          <p style={{ fontSize: 14, color: '#64748b', marginTop: 4 }}>
+            Enter a number range to download two CSV files — one chunked every 30, one every 180.
+          </p>
+        </div>
+
+        <RangeGenerator />
       </div>
     </div>
   );
