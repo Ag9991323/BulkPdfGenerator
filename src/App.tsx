@@ -440,14 +440,14 @@ export default function App() {
     setProgress({ current: 0, total, msg: 'Starting…', eta: null });
 
     // Sheet: 330.2 × 482.6 mm portrait | Print area: 308.18 × 463.1 mm
-    // Cards: 75 × 55 mm — 4 cols × 8 rows = 32 per page, gaps distributed evenly
+    // Cards: 75 × 55 mm — 4 cols × 8 rows grid, but only 30 per page
     const PAGE_W = 330.2;
     const PAGE_H = 482.6;
     const PRINT_W = 308.18;
     const PRINT_H = 463.1;
     const COLS = Math.floor(PRINT_W / CARD_W); // 4
     const ROWS = Math.floor(PRINT_H / CARD_H); // 8
-    const PER_PAGE = COLS * ROWS; // 32
+    const PER_PAGE = 30; // 30 cards per page (4 cols × 7.5 rows, last col has 6 rows)
     const GAP_X = (PRINT_W - COLS * CARD_W) / (COLS - 1); // ~2.73 mm
     const GAP_Y = (PRINT_H - ROWS * CARD_H) / (ROWS - 1); // ~3.3 mm
     const OX = (PAGE_W - PRINT_W) / 2; // ~11 mm
