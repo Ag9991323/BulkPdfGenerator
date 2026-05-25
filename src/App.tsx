@@ -3,46 +3,66 @@ import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { saveAs } from 'file-saver';
 
-// ─── constants ─────────────────────────────────────────────────────────────
-// Card size (mm) — landscape
+// ─── Constants ─────────────────────────────────────────────────────────────
+// Individual card size (mm)
 const CARD_W = 75;
 const CARD_H = 55;
 
-// Positions from actual template image (IMG-20260522-WA0001.jpg, 1279×827 px → 75×55 mm).
-// Scale: x = 75/1279 mm/px, y = 55/827 mm/px
-// White panel: X 17–55 mm, Y 19–34 mm (height 15 mm)
-// QR zone: X 17–27 mm (10 mm wide — template QR is square in px but maps to 10×15 mm due to
-// aspect-ratio stretch; QR overlay must stay square for scanability → 12 mm fits neatly)
-// Barcode zone: X 30–55 mm (25 mm wide), same Y range as QR
+// QR/Barcode overlay positions (measured from template IMG-20260522-WA0001.jpg)
 const QR_X = 21; // mm from card left
 const QR_Y = 18; // mm from card top
-const QR_SZ = 12; // mm — square (slightly less than 13 per user feedback; same height as BC_H)
+const QR_SZ = 12; // mm — square
 
-const BC_X = 34; // mm from card left (QR ends at 29 → 1 mm gap)
-const BC_Y = 18.5; // mm from card top (same top edge as QR)
-const BC_W = 20; // mm (30+25=55 mm, fits to panel right edge)
-const BC_H = 11.5; // mm (= QR_SZ so both span the same height tile)
+const BC_X = 34; // mm from card left
+const BC_Y = 17.5; // mm from card top
+const BC_W = 20; // mm
+const BC_H = 12.5; // mm
 
-// ─── helpers ───────────────────────────────────────────────────────────────
-function resizeImage(file: File, maxW = 1600, maxH = 1200, quality = 0.92) {
-  return new Promise<string>((resolve, reject) => {
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+function resizeImage(
+  file: File,
+  maxW = 3000,
+  maxH = 2100,
+  quality = 0.92,
+  cornerRadiusMM = 0
+): Promise<string> {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
+
     img.onload = () => {
       const scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
+      const w = Math.round(img.naturalWidth * scale);
+      const h = Math.round(img.naturalHeight * scale);
+
       const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.naturalWidth * scale);
-      canvas.height = Math.round(img.naturalHeight * scale);
-      canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      canvas.width = w;
+      canvas.height = h;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx && cornerRadiusMM > 0) {
+        const r = Math.round((cornerRadiusMM / CARD_W) * w);
+        ctx.beginPath();
+        (ctx as any).roundRect(0, 0, w, h, r);
+        ctx.clip();
+      }
+
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, w, h);
+      }
+
+      resolve(canvas.toDataURL('image/png'));
       URL.revokeObjectURL(url);
     };
+
     img.onerror = reject;
     img.src = url;
   });
 }
 
-// ─── UI components ────────────────────────────────────────────────────────
+// ─── UI Components ─────────────────────────────────────────────────────────
+
 const cardStyle = {
   background: '#fff',
   border: '1px solid #e2e8f0',
@@ -50,16 +70,17 @@ const cardStyle = {
   padding: '22px 26px',
 };
 
-interface SectionProps {
-  title: string;
-  badge?: string | null;
-  children: React.ReactNode;
-}
-
-function Section({ title, badge, children }: SectionProps) {
+function Section({ title, badge, children }: any) {
   return (
     <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 18,
+        }}
+      >
         <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
           {title}
         </h2>
@@ -83,15 +104,7 @@ function Section({ title, badge, children }: SectionProps) {
   );
 }
 
-interface DropZoneProps {
-  accept: string;
-  label: string;
-  sublabel?: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  active: boolean;
-}
-
-function DropZone({ accept, label, sublabel, onChange, active }: DropZoneProps) {
+function DropZone({ accept, label, sublabel, onChange, active }: any) {
   const ref = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
 
@@ -107,10 +120,12 @@ function DropZone({ accept, label, sublabel, onChange, active }: DropZoneProps) 
         e.preventDefault();
         setDrag(false);
         const f = e.dataTransfer.files[0];
-        if (f) onChange({ target: { files: [f] } } as any);
+        if (f) onChange({ target: { files: [f] } });
       }}
       style={{
-        border: `2px dashed ${drag ? '#3b82f6' : active ? '#22c55e' : '#cbd5e1'}`,
+        border: `2px dashed ${
+          drag ? '#3b82f6' : active ? '#22c55e' : '#cbd5e1'
+        }`,
         borderRadius: 10,
         padding: '28px 16px',
         textAlign: 'center',
@@ -120,9 +135,15 @@ function DropZone({ accept, label, sublabel, onChange, active }: DropZoneProps) 
       }}
     >
       <div style={{ fontSize: 32, marginBottom: 8 }}>
-        {active ? '✓' : '📎'}
+        {active ? '✓' : '📄'}
       </div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: active ? '#16a34a' : '#475569' }}>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          color: active ? '#16a34a' : '#475569',
+        }}
+      >
         {label}
       </div>
       {sublabel && (
@@ -141,31 +162,34 @@ function DropZone({ accept, label, sublabel, onChange, active }: DropZoneProps) 
   );
 }
 
-// ─── Range / Series Generator ───────────────────────────────────────────────
+// ─── Range / Series Generator ──────────────────────────────────────────────
+
 function RangeGenerator() {
   const [startNum, setStartNum] = useState('');
   const [endNum, setEndNum] = useState('');
 
   const buildRows = (start: number, end: number, gap: number) => {
-    const rows: [number, number][] = [];
+    const rows: number[][] = [];
     let a = start;
     while (a <= end) {
       rows.push([a, Math.min(a + gap - 1, end)]);
-      a = a + gap;
+      a += gap;
     }
     return rows;
   };
 
-  const toCSV = (rows: [number, number][]) =>
+  const toCSV = (rows: number[][]) =>
     ['Start,End', ...rows.map((r) => r.join(','))].join('\n');
 
   const handleGenerate = () => {
     const start = parseInt(startNum, 10);
     const end = parseInt(endNum, 10);
+
     if (isNaN(start) || isNaN(end) || start > end) {
       alert('Enter a valid start and end number (start ≤ end).');
       return;
     }
+
     saveAs(
       new Blob([toCSV(buildRows(start, end, 30))], { type: 'text/csv' }),
       `series_gap30_${start}-${end}.csv`
@@ -177,10 +201,9 @@ function RangeGenerator() {
   };
 
   const ready = startNum !== '' && endNum !== '';
-
-  const inputStyle: React.CSSProperties = {
+  const inputStyle = {
     width: '100%',
-    boxSizing: 'border-box',
+    boxSizing: 'border-box' as const,
     border: '1px solid #cbd5e1',
     borderRadius: 8,
     padding: '10px 12px',
@@ -190,7 +213,14 @@ function RangeGenerator() {
 
   return (
     <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 18,
+        }}
+      >
         <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
           Series Range Generator
         </h2>
@@ -208,7 +238,14 @@ function RangeGenerator() {
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 16,
+          marginBottom: 16,
+        }}
+      >
         <div>
           <label
             style={{
@@ -271,143 +308,157 @@ function RangeGenerator() {
         Download 2 CSV Files
       </button>
 
-      <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 10, textAlign: 'center' }}>
-        File 1 — rows: [A, A+30] stepping start → end &nbsp;·&nbsp; File 2 — rows: [A, A+180]
+      <p
+        style={{
+          fontSize: 12,
+          color: '#94a3b8',
+          marginTop: 10,
+          textAlign: 'center',
+        }}
+      >
+        File 1 — rows: [A, A+30] stepping start → end &nbsp;·&nbsp; File 2 —
+        rows: [A, A+180]
       </p>
     </div>
   );
 }
 
 // ─── App ───────────────────────────────────────────────────────────────────
-interface PairPath {
-  qrPath: string | null;
-  bcPath: string | null;
-}
-
-interface Progress {
-  current: number;
-  total: number;
-  msg: string;
-  eta: string | null;
-  done?: boolean;
-}
 
 export default function App() {
   const [pairCount, setPairCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [bgDataURL, setBgDataURL] = useState<string | null>(null);
-  const [progress, setProgress] = useState<Progress | null>(null);
+  const [progress, setProgress] = useState<any>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [excelName, setExcelName] = useState('all_cards');
 
   const abortRef = useRef(false);
-  const xlsxZipRef = useRef<JSZip | null>(null);
-  const pairPathsRef = useRef<PairPath[]>([]);
+  const xlsxZipRef = useRef<any>(null);
+  const pairPathsRef = useRef<any[]>([]);
 
-  // ── Excel upload ──────────────────────────────────────────────────────
-  const onExcelFile = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  // ── Excel upload ────────────────────────────────────────────────────────
+  const onExcelFile = useCallback(async (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-      setPairCount(0);
-      xlsxZipRef.current = null;
-      pairPathsRef.current = [];
-      setExcelName(file.name.replace(/\.[^.]+$/, ''));
-      setProgress(null);
-      setIsLoading(true);
+    setPairCount(0);
+    xlsxZipRef.current = null;
+    pairPathsRef.current = [];
+    setExcelName(file.name.replace(/\.[^.]+$/, ''));
+    setProgress(null);
+    setIsLoading(true);
 
-      try {
-        const zip = await JSZip.loadAsync(file);
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const relsText = await zip
+        .file('xl/drawings/_rels/drawing1.xml.rels')
+        ?.async('text');
 
-        const relsText = await zip.file('xl/drawings/_rels/drawing1.xml.rels')?.async('text');
-        if (!relsText)
-          throw new Error('No drawing found — make sure this Excel has embedded QR/Barcode images.');
+      if (!relsText)
+        throw new Error(
+          'No drawing found — make sure this Excel has embedded QR/Barcode images.'
+        );
 
-        const ridToPath: Record<string, string> = {};
-        for (const m of relsText.matchAll(/Id="(rId\d+)"[^>]*Target="([^"]+\.png)"/gi)) {
-          ridToPath[m[1]] = m[2].replace(/^\.\.\//, 'xl/');
-        }
-
-        const drawingText = await zip.file('xl/drawings/drawing1.xml')?.async('text');
-        if (!drawingText) throw new Error('Could not read drawing XML.');
-
-        const pairMap: Record<number, any> = {};
-        for (const anchor of drawingText.split('<xdr:oneCellAnchor>').slice(1)) {
-          const nm = anchor.match(/name="(QRCode|Barcode)-(\d+)"/i);
-          const rid = anchor.match(/r:embed="(rId\d+)"/);
-          if (!nm || !rid) continue;
-
-          const n = parseInt(nm[2]);
-          if (!pairMap[n]) pairMap[n] = {};
-          if (nm[1].toLowerCase() === 'qrcode') pairMap[n].qrRid = rid[1];
-          else pairMap[n].bcRid = rid[1];
-        }
-
-        const sorted = Object.keys(pairMap)
-          .map(Number)
-          .sort((a, b) => a - b);
-        if (!sorted.length)
-          throw new Error('No QRCode/Barcode pairs found (expected "QRCode-1", "Barcode-1", …).');
-
-        pairPathsRef.current = sorted.map((n) => ({
-          qrPath: pairMap[n].qrRid ? ridToPath[pairMap[n].qrRid] ?? null : null,
-          bcPath: pairMap[n].bcRid ? ridToPath[pairMap[n].bcRid] ?? null : null,
-        }));
-
-        xlsxZipRef.current = zip;
-        setPairCount(sorted.length);
-      } catch (err) {
-        alert('Failed to read file: ' + (err instanceof Error ? err.message : String(err)));
-      } finally {
-        setIsLoading(false);
+      const ridToPath: Record<string, string> = {};
+      for (const m of relsText.matchAll(
+        /Id="(rId\d+)"[^>]*Target="([^"]+\.png)"/gi
+      )) {
+        ridToPath[m[1]] = m[2].replace(/^\.\.\//, 'xl/');
       }
-    },
-    []
-  );
 
-  // ── Background upload ─────────────────────────────────────────────────
-  const onBg = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const drawingText = await zip
+        .file('xl/drawings/drawing1.xml')
+        ?.async('text');
 
-      try {
-        const dataURL = await resizeImage(file);
-        setBgDataURL(dataURL);
-      } catch {
-        alert('Could not load background image.');
+      if (!drawingText) throw new Error('Could not read drawing XML.');
+
+      const pairMap: Record<number, any> = {};
+      for (const anchor of drawingText
+        .split('<xdr:oneCellAnchor>')
+        .slice(1)) {
+        const nm = anchor.match(/name="(QRCode|Barcode)-(\d+)"/i);
+        const rid = anchor.match(/r:embed="(rId\d+)"/);
+
+        if (!nm || !rid) continue;
+
+        const n = parseInt(nm[2]);
+        if (!pairMap[n]) pairMap[n] = {};
+
+        if (nm[1].toLowerCase() === 'qrcode')
+          pairMap[n].qrRid = rid[1];
+        else pairMap[n].bcRid = rid[1];
       }
-    },
-    []
-  );
 
-  // ── Generate ──────────────────────────────────────────────────────────
+      const sorted = Object.keys(pairMap)
+        .map(Number)
+        .sort((a, b) => a - b);
+
+      if (!sorted.length)
+        throw new Error(
+          'No QRCode/Barcode pairs found (expected "QRCode-1", "Barcode-1", …).'
+        );
+
+      pairPathsRef.current = sorted.map((n) => ({
+        qrPath: pairMap[n].qrRid ? (ridToPath[pairMap[n].qrRid] ?? null) : null,
+        bcPath: pairMap[n].bcRid ? (ridToPath[pairMap[n].bcRid] ?? null) : null,
+      }));
+
+      xlsxZipRef.current = zip;
+      setPairCount(sorted.length);
+    } catch (err: any) {
+      alert('Failed to read file: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // ── Background upload ───────────────────────────────────────────────────
+  const onBg = useCallback(async (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const dataURL = await resizeImage(file, 3000, 2100, 0.92, 5);
+      setBgDataURL(dataURL);
+    } catch {
+      alert('Could not load background image.');
+    }
+  }, []);
+
+  // ── Generate ────────────────────────────────────────────────────────────
   const generate = async () => {
     if (!pairCount) return alert('Upload an Excel file first.');
 
     abortRef.current = false;
     setIsRunning(true);
+
     const total = pairCount;
     const sourceZip = xlsxZipRef.current;
     const pairPaths = pairPathsRef.current;
+
     setProgress({ current: 0, total, msg: 'Starting…', eta: null });
 
-    // A4 portrait — 2 cols × 5 rows = 10 cards per page
-    const PAGE_W = 210;
-    const PAGE_H = 297;
-    const GAP = 2;
-    const COLS = Math.floor((PAGE_W + GAP) / (CARD_W + GAP)); // 2
-    const ROWS = Math.floor((PAGE_H + GAP) / (CARD_H + GAP)); // 5
-    const PER_PAGE = COLS * ROWS; // 10
-    const OX = (PAGE_W - (COLS * CARD_W + (COLS - 1) * GAP)) / 2;
-    const OY = (PAGE_H - (ROWS * CARD_H + (ROWS - 1) * GAP)) / 2;
+    // Sheet: 330.2 × 482.6 mm portrait | Print area: 308.18 × 463.1 mm
+    // Cards: 75 × 55 mm — 4 cols × 8 rows = 32 per page, gaps distributed evenly
+    const PAGE_W = 330.2;
+    const PAGE_H = 482.6;
+    const PRINT_W = 308.18;
+    const PRINT_H = 463.1;
+    const COLS = Math.floor(PRINT_W / CARD_W); // 4
+    const ROWS = Math.floor(PRINT_H / CARD_H); // 8
+    const PER_PAGE = COLS * ROWS; // 32
+    const GAP_X = (PRINT_W - COLS * CARD_W) / (COLS - 1); // ~2.73 mm
+    const GAP_Y = (PRINT_H - ROWS * CARD_H) / (ROWS - 1); // ~3.3 mm
+    const OX = (PAGE_W - PRINT_W) / 2; // ~11 mm
+    const OY = (PAGE_H - PRINT_H) / 2; // ~9.75 mm
 
     const pdf = new jsPDF({
       unit: 'mm',
       format: [PAGE_W, PAGE_H],
       orientation: 'portrait',
     });
+
     const t0 = Date.now();
 
     for (let i = 0; i < total; i++) {
@@ -416,19 +467,33 @@ export default function App() {
       const slot = i % PER_PAGE;
       if (i > 0 && slot === 0) pdf.addPage([PAGE_W, PAGE_H], 'portrait');
 
-      const col = slot % COLS;
-      const row = Math.floor(slot / COLS);
-      const cardX = OX + col * (CARD_W + GAP);
-      const cardY = OY + row * (CARD_H + GAP);
+      const col = Math.floor(slot / ROWS);
+      const row = slot % ROWS;
+      const cardX = OX + col * (CARD_W + GAP_X);
+      const cardY = OY + row * (CARD_H + GAP_Y);
 
       try {
         // Draw background — alias 'bg' lets jsPDF reuse encoded data for every card
-        if (bgDataURL) pdf.addImage(bgDataURL, 'JPEG', cardX, cardY, CARD_W, CARD_H, 'bg', 'FAST');
+        if (bgDataURL)
+          pdf.addImage(
+            bgDataURL,
+            'PNG',
+            cardX,
+            cardY,
+            CARD_W,
+            CARD_H,
+            'bg',
+            'FAST'
+          );
 
         const { qrPath, bcPath } = pairPaths[i];
         const [qrB64, bcB64] = await Promise.all([
-          qrPath ? sourceZip?.file(qrPath)?.async('base64') : Promise.resolve(null),
-          bcPath ? sourceZip?.file(bcPath)?.async('base64') : Promise.resolve(null),
+          qrPath
+            ? sourceZip.file(qrPath)?.async('base64')
+            : Promise.resolve(null),
+          bcPath
+            ? sourceZip.file(bcPath)?.async('base64')
+            : Promise.resolve(null),
         ]);
 
         // Overlay QR and barcode at hardcoded positions (measured from template)
@@ -443,6 +508,7 @@ export default function App() {
             undefined,
             'FAST'
           );
+
         if (bcB64)
           pdf.addImage(
             `data:image/png;base64,${bcB64}`,
@@ -462,12 +528,17 @@ export default function App() {
         const elapsed = (Date.now() - t0) / 1000;
         const rate = (i + 1) / elapsed;
         const eta = Math.ceil((total - i - 1) / Math.max(rate, 0.01));
+
         setProgress({
           current: i + 1,
           total,
           msg: `Processing ${i + 1} / ${total}`,
-          eta: eta > 0 ? `~${eta < 60 ? eta + 's' : Math.ceil(eta / 60) + 'm'} remaining` : null,
+          eta:
+            eta > 0
+              ? `~${eta < 60 ? eta + 's' : Math.ceil(eta / 60) + 'm'} remaining`
+              : null,
         });
+
         await new Promise((r) => setTimeout(r, 0));
       }
     }
@@ -481,6 +552,7 @@ export default function App() {
     setProgress({ current: total, total, msg: 'Saving PDF…', eta: null });
     const blob = pdf.output('blob');
     saveAs(blob, `${excelName}.pdf`);
+
     setProgress({
       current: total,
       total,
@@ -488,6 +560,7 @@ export default function App() {
       eta: null,
       done: true,
     });
+
     setIsRunning(false);
   };
 
@@ -495,7 +568,9 @@ export default function App() {
     abortRef.current = true;
   };
 
-  const pct = progress ? Math.round((progress.current / progress.total) * 100) : 0;
+  const pct = progress
+    ? Math.round((progress.current / progress.total) * 100)
+    : 0;
 
   return (
     <div
@@ -507,23 +582,33 @@ export default function App() {
       }}
     >
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        {/* Header */}
         <div style={{ marginBottom: 32 }}>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a' }}>
             Bulk PDF Generator
           </h1>
           <p style={{ fontSize: 14, color: '#64748b', marginTop: 6 }}>
-            Excel (QR &amp; barcode images) + background template → one PDF, 10 cards per A4 page
-            (75 × 55 mm each).
+            Excel (QR &amp; barcode images) + background template → one PDF, 32
+            cards per 330.2 × 482.6 mm sheet (75 × 55 mm each, 4 cols × 8
+            rows).
           </p>
         </div>
 
-        {/* Upload Sections */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 20,
+            marginBottom: 20,
+          }}
+        >
           <Section
             title="1 · Excel File"
             badge={
-              pairCount ? `${pairCount.toLocaleString()} pairs` : isLoading ? 'Reading…' : null
+              pairCount
+                ? `${pairCount.toLocaleString()} pairs`
+                : isLoading
+                  ? 'Reading…'
+                  : null
             }
           >
             <DropZone
@@ -541,11 +626,16 @@ export default function App() {
             />
           </Section>
 
-          <Section title="2 · Background Template" badge={bgDataURL ? 'Loaded ✓' : null}>
+          <Section
+            title="2 · Background Template"
+            badge={bgDataURL ? 'Loaded ✓' : null}
+          >
             <DropZone
               accept="image/*"
               label={
-                bgDataURL ? 'Background loaded ✓' : 'Drop background image here or click'
+                bgDataURL
+                  ? 'Background loaded ✓'
+                  : 'Drop background image here or click'
               }
               sublabel="Agricultural card template (fixed positions hardcoded)"
               onChange={onBg}
@@ -554,7 +644,6 @@ export default function App() {
           </Section>
         </div>
 
-        {/* Generate Section */}
         <div style={cardStyle}>
           {pairCount > 1000 && !progress && (
             <div
@@ -569,7 +658,8 @@ export default function App() {
               }}
             >
               <strong>Note:</strong> {pairCount.toLocaleString()} cards across{' '}
-              {Math.ceil(pairCount / 10).toLocaleString()} A4 pages will take several minutes.
+              {Math.ceil(pairCount / 32).toLocaleString()} pages will take
+              several minutes.
             </div>
           )}
 
@@ -592,9 +682,10 @@ export default function App() {
               {isRunning
                 ? 'Generating PDF…'
                 : pairCount
-                  ? `Generate PDF (${pairCount.toLocaleString()} cards, ${Math.ceil(pairCount / 10)} pages) & Download`
+                  ? `Generate PDF (${pairCount.toLocaleString()} cards, ${Math.ceil(pairCount / 32)} pages) & Download`
                   : 'Upload an Excel file to begin'}
             </button>
+
             {isRunning && (
               <button
                 onClick={cancel}
@@ -616,7 +707,13 @@ export default function App() {
 
           {progress && (
             <div style={{ marginTop: 18 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: 8,
+                }}
+              >
                 <span
                   style={{
                     fontSize: 13,
@@ -626,11 +723,19 @@ export default function App() {
                 >
                   {progress.msg}
                 </span>
-                <span style={{ fontSize: 13, color: '#64748b', display: 'flex', gap: 12 }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: '#64748b',
+                    display: 'flex',
+                    gap: 12,
+                  }}
+                >
                   {progress.eta && <span>{progress.eta}</span>}
                   <span style={{ fontWeight: 700 }}>{pct}%</span>
                 </span>
               </div>
+
               <div
                 style={{
                   background: '#e2e8f0',
@@ -649,6 +754,7 @@ export default function App() {
                   }}
                 />
               </div>
+
               {progress.done && (
                 <p
                   style={{
@@ -666,21 +772,38 @@ export default function App() {
           )}
         </div>
 
-        {/* Footer */}
-        <p style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', marginTop: 24 }}>
+        <p
+          style={{
+            textAlign: 'center',
+            fontSize: 12,
+            color: '#94a3b8',
+            marginTop: 24,
+          }}
+        >
           All processing happens in your browser — no data leaves your device.
         </p>
 
-        {/* Divider */}
-        <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '32px 0' }} />
+        <hr
+          style={{
+            border: 'none',
+            borderTop: '1px solid #e2e8f0',
+            margin: '32px 0',
+          }}
+        />
 
-        {/* Range Generator Section */}
         <div style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}>
+          <h2
+            style={{
+              fontSize: 20,
+              fontWeight: 800,
+              color: '#0f172a',
+            }}
+          >
             Series Range Generator
           </h2>
           <p style={{ fontSize: 14, color: '#64748b', marginTop: 4 }}>
-            Enter a number range to download two CSV files — one chunked every 30, one every 180.
+            Enter a number range to download two CSV files — one chunked every
+            30, one every 180.
           </p>
         </div>
 
