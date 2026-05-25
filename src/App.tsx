@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { saveAs } from 'file-saver';
@@ -24,7 +24,6 @@ function resizeImage(
   file: File,
   maxW = 3000,
   maxH = 2100,
-  quality = 0.92,
   cornerRadiusMM = 0
 ): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -419,7 +418,7 @@ export default function App() {
     if (!file) return;
 
     try {
-      const dataURL = await resizeImage(file, 3000, 2100, 0.92, 5);
+      const dataURL = await resizeImage(file, 3000, 2100, 5);
       setBgDataURL(dataURL);
     } catch {
       alert('Could not load background image.');
