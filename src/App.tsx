@@ -212,19 +212,58 @@ function RangeGenerator() {
       return;
     }
 
-    // Generate Gap 30 CSV
-    const gap30Content = buildGap30Rows(start, end).join('\n');
-    saveAs(
-      new Blob([gap30Content], { type: 'text/csv' }),
-      `series_gap30_${start}-${end}.csv`
-    );
+    const districtNameUpper = cityName.toUpperCase();
 
-    // Generate Gap 180 CSV
-    const gap180Content = buildGap180Rows(start, end, cityName).join('\n');
-    saveAs(
-      new Blob([gap180Content], { type: 'text/csv' }),
-      `series_gap180_${start}-${end}_${cityName}.csv`
-    );
+    // Generate Gap 30 PDF
+    const gap30Rows = buildGap30Rows(start, end);
+    const pdf30 = new jsPDF({
+      unit: 'mm',
+      format: 'a4',
+      orientation: 'portrait',
+    });
+
+    let yPos = 10;
+    pdf30.setFontSize(12);
+    gap30Rows.forEach((row) => {
+      if (yPos > 270) {
+        pdf30.addPage();
+        yPos = 10;
+      }
+      pdf30.text(row, 10, yPos);
+      yPos += 8;
+    });
+
+    saveAs(pdf30.output('blob'), `series_gap30_${start}-${end}.pdf`);
+
+    // Generate Gap 180 PDF
+    const gap180Rows = buildGap180Rows(start, end, districtNameUpper);
+    const pdf180 = new jsPDF({
+      unit: 'mm',
+      format: 'a4',
+      orientation: 'portrait',
+    });
+
+    yPos = 10;
+    pdf180.setFontSize(12);
+    gap180Rows.forEach((rowContent) => {
+      if (yPos > 270) {
+        pdf180.addPage();
+        yPos = 10;
+      }
+      // Remove quotes and split lines for proper formatting
+      const lines = rowContent.replace(/^"|"$/g, '').split('\n');
+      lines.forEach((line) => {
+        if (yPos > 270) {
+          pdf180.addPage();
+          yPos = 10;
+        }
+        pdf180.text(line, 10, yPos);
+        yPos += 8;
+      });
+      yPos += 4; // Extra space between entries
+    });
+
+    saveAs(pdf180.output('blob'), `series_gap180_${start}-${end}_${districtNameUpper}.pdf`);
   };
 
   const ready = startNum !== '' && endNum !== '' && cityName.trim() !== '';
@@ -345,7 +384,7 @@ function RangeGenerator() {
           color: 'white',
         }}
       >
-        Download 2 CSV Files
+        Download 2 PDF Files
       </button>
 
       <p
@@ -356,8 +395,8 @@ function RangeGenerator() {
           textAlign: 'center',
         }}
       >
-        File 1 (Gap 30) — single column: start - start+30 &nbsp;·&nbsp; File 2
-        (Gap 180) — city name header, then cell numbers (1/N, 2/N...) with
+        File 1 (Gap 30) — ranges: start - start+30 &nbsp;·&nbsp; File 2
+        (Gap 180) — district name (UPPERCASE), cell numbers (1/N, 2/N...) with
         ranges
       </p>
     </div>
