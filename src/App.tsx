@@ -9,14 +9,14 @@ const CARD_W = 75;
 const CARD_H = 55;
 
 // QR/Barcode overlay positions (measured from template IMG-20260522-WA0001.jpg)
-const QR_X = 21; // mm from card left
-const QR_Y = 18; // mm from card top
-const QR_SZ = 12; // mm — square
+const QR_X = 12.1; // mm from card left
+const QR_Y = 20.3; // mm from card top
+const QR_SZ = 18; // mm — square
 
-const BC_X = 34; // mm from card left
-const BC_Y = 17.5; // mm from card top
-const BC_W = 20; // mm
-const BC_H = 12.5; // mm
+const BC_X = 28.5; // mm from card left
+const BC_Y = 20.8; // mm from card top
+const BC_W = 34.2; // mm
+const BC_H = 17.5; // mm
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
