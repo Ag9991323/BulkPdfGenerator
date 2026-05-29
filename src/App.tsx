@@ -166,19 +166,37 @@ function DropZone({ accept, label, sublabel, onChange, active }: any) {
 function RangeGenerator() {
   const [startNum, setStartNum] = useState('');
   const [endNum, setEndNum] = useState('');
+  const [cityName, setCityName] = useState('');
 
-  const buildRows = (start: number, end: number, gap: number) => {
-    const rows: number[][] = [];
+  const buildGap30Rows = (start: number, end: number) => {
+    const rows: string[] = [];
     let a = start;
     while (a <= end) {
-      rows.push([a, Math.min(a + gap - 1, end)]);
-      a += gap;
+      const endRange = Math.min(a + 30 - 1, end);
+      rows.push(`${a}-${endRange}`);
+      a += 30;
     }
     return rows;
   };
 
-  const toCSV = (rows: number[][]) =>
-    ['Start,End', ...rows.map((r) => r.join(','))].join('\n');
+  const buildGap180Rows = (start: number, end: number, city: string) => {
+    const rows: string[] = [];
+    const totalCount = end - start + 1;
+    const totalRows = Math.ceil(totalCount / 180);
+    let a = start;
+    let rowNum = 1;
+
+    while (a <= end && rowNum <= totalRows) {
+      const cellLabel = `${rowNum}/${totalRows}`;
+      const endRange = Math.min(a + 180 - 1, end);
+      // Return quoted CSV cell with newlines inside (quoted for multiline support)
+      rows.push(`"${city}\n${cellLabel}\n${a}-${endRange}"`);
+      a += 180;
+      rowNum++;
+    }
+
+    return rows;
+  };
 
   const handleGenerate = () => {
     const start = parseInt(startNum, 10);
@@ -189,17 +207,27 @@ function RangeGenerator() {
       return;
     }
 
+    if (!cityName.trim()) {
+      alert('Please enter a city name.');
+      return;
+    }
+
+    // Generate Gap 30 CSV
+    const gap30Content = buildGap30Rows(start, end).join('\n');
     saveAs(
-      new Blob([toCSV(buildRows(start, end, 30))], { type: 'text/csv' }),
+      new Blob([gap30Content], { type: 'text/csv' }),
       `series_gap30_${start}-${end}.csv`
     );
+
+    // Generate Gap 180 CSV
+    const gap180Content = buildGap180Rows(start, end, cityName).join('\n');
     saveAs(
-      new Blob([toCSV(buildRows(start, end, 180))], { type: 'text/csv' }),
-      `series_gap180_${start}-${end}.csv`
+      new Blob([gap180Content], { type: 'text/csv' }),
+      `series_gap180_${start}-${end}_${cityName}.csv`
     );
   };
 
-  const ready = startNum !== '' && endNum !== '';
+  const ready = startNum !== '' && endNum !== '' && cityName.trim() !== '';
   const inputStyle = {
     width: '100%',
     boxSizing: 'border-box' as const,
@@ -237,56 +265,69 @@ function RangeGenerator() {
         </span>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
-        <div>
-          <label
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#475569',
-              display: 'block',
-              marginBottom: 6,
-            }}
-          >
-            Starting Number
-          </label>
-          <input
-            type="number"
-            min="0"
-            value={startNum}
-            onChange={(e) => setStartNum(e.target.value)}
-            placeholder="e.g. 1"
-            style={inputStyle}
-          />
-        </div>
-        <div>
-          <label
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#475569',
-              display: 'block',
-              marginBottom: 6,
-            }}
-          >
-            Ending Number
-          </label>
-          <input
-            type="number"
-            min="0"
-            value={endNum}
-            onChange={(e) => setEndNum(e.target.value)}
-            placeholder="e.g. 500"
-            style={inputStyle}
-          />
-        </div>
+      <div style={{ marginBottom: 16 }}>
+        <label
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#475569',
+            display: 'block',
+            marginBottom: 6,
+          }}
+        >
+          Starting Number
+        </label>
+        <input
+          type="number"
+          min="0"
+          value={startNum}
+          onChange={(e) => setStartNum(e.target.value)}
+          placeholder="e.g. 160001"
+          style={inputStyle}
+        />
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#475569',
+            display: 'block',
+            marginBottom: 6,
+          }}
+        >
+          Ending Number
+        </label>
+        <input
+          type="number"
+          min="0"
+          value={endNum}
+          onChange={(e) => setEndNum(e.target.value)}
+          placeholder="e.g. 163000"
+          style={inputStyle}
+        />
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#475569',
+            display: 'block',
+            marginBottom: 6,
+          }}
+        >
+          City Name
+        </label>
+        <input
+          type="text"
+          value={cityName}
+          onChange={(e) => setCityName(e.target.value)}
+          placeholder="e.g. New York"
+          style={inputStyle}
+        />
       </div>
 
       <button
@@ -315,8 +356,9 @@ function RangeGenerator() {
           textAlign: 'center',
         }}
       >
-        File 1 — rows: [A, A+30] stepping start → end &nbsp;·&nbsp; File 2 —
-        rows: [A, A+180]
+        File 1 (Gap 30) — single column: start - start+30 &nbsp;·&nbsp; File 2
+        (Gap 180) — city name header, then cell numbers (1/N, 2/N...) with
+        ranges
       </p>
     </div>
   );
