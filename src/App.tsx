@@ -168,29 +168,74 @@ function RangeGenerator() {
   const [endNum, setEndNum] = useState('');
   const [cityName, setCityName] = useState('');
 
-  const buildGap30Rows = (start: number, end: number) => {
+  const buildGap30Rows = (startStr: string, endStr: string) => {
+    // Check if input has "/" - if yes, extract prefix and numeric parts using last "/"
+    const lastSlashStart = startStr.lastIndexOf('/');
+    const lastSlashEnd = endStr.lastIndexOf('/');
+    
+    let prefix = '';
+    let startNum: number;
+    let endNum: number;
+    
+    if (lastSlashStart !== -1 && lastSlashEnd !== -1) {
+      // Has "/" - extract prefix and numbers
+      prefix = startStr.substring(0, lastSlashStart + 1);
+      startNum = parseInt(startStr.substring(lastSlashStart + 1), 10);
+      endNum = parseInt(endStr.substring(lastSlashEnd + 1), 10);
+    } else {
+      // No "/" - treat entire string as number
+      startNum = parseInt(startStr, 10);
+      endNum = parseInt(endStr, 10);
+    }
+    
+    if (isNaN(startNum) || isNaN(endNum) || startNum > endNum) {
+      throw new Error('Invalid format. Use numeric or "prefix/number" format (e.g., "160011" or "19/A/160011")');
+    }
+    
     const rows: string[] = [];
-    let a = start;
-    while (a <= end) {
-      const endRange = Math.min(a + 30 - 1, end);
-      rows.push(`${a}-${endRange}`);
+    let a = startNum;
+    while (a <= endNum) {
+      const endRange = Math.min(a + 30 - 1, endNum);
+      rows.push(`${prefix}${a}-${prefix}${endRange}`);
       a += 30;
     }
     return rows;
   };
 
-  const buildGap180Rows = (start: number, end: number, city: string) => {
+  const buildGap180Rows = (startStr: string, endStr: string, city: string) => {
+    // Check if input has "/" - if yes, extract prefix and numeric parts using last "/"
+    const lastSlashStart = startStr.lastIndexOf('/');
+    const lastSlashEnd = endStr.lastIndexOf('/');
+    
+    let prefix = '';
+    let startNum: number;
+    let endNum: number;
+    
+    if (lastSlashStart !== -1 && lastSlashEnd !== -1) {
+      // Has "/" - extract prefix and numbers
+      prefix = startStr.substring(0, lastSlashStart + 1);
+      startNum = parseInt(startStr.substring(lastSlashStart + 1), 10);
+      endNum = parseInt(endStr.substring(lastSlashEnd + 1), 10);
+    } else {
+      // No "/" - treat entire string as number
+      startNum = parseInt(startStr, 10);
+      endNum = parseInt(endStr, 10);
+    }
+    
+    if (isNaN(startNum) || isNaN(endNum) || startNum > endNum) {
+      throw new Error('Invalid format. Use numeric or "prefix/number" format (e.g., "160011" or "19/A/160011")');
+    }
+    
     const rows: string[] = [];
-    const totalCount = end - start + 1;
+    const totalCount = endNum - startNum + 1;
     const totalRows = Math.ceil(totalCount / 180);
-    let a = start;
+    let a = startNum;
     let rowNum = 1;
 
-    while (a <= end && rowNum <= totalRows) {
+    while (a <= endNum && rowNum <= totalRows) {
       const cellLabel = `${rowNum}/${totalRows}`;
-      const endRange = Math.min(a + 180 - 1, end);
-      // Return quoted CSV cell with newlines inside (quoted for multiline support)
-      rows.push(`"${city}\n${cellLabel}\n${a}-${endRange}"`);
+      const endRange = Math.min(a + 180 - 1, endNum);
+      rows.push(`"${city}\n${cellLabel}\n${prefix}${a}-${prefix}${endRange}"`);
       a += 180;
       rowNum++;
     }
@@ -199,11 +244,8 @@ function RangeGenerator() {
   };
 
   const handleGenerate = () => {
-    const start = parseInt(startNum, 10);
-    const end = parseInt(endNum, 10);
-
-    if (isNaN(start) || isNaN(end) || start > end) {
-      alert('Enter a valid start and end number (start ≤ end).');
+    if (!startNum.trim() || !endNum.trim()) {
+      alert('Enter both start and end numbers.');
       return;
     }
 
@@ -214,56 +256,60 @@ function RangeGenerator() {
 
     const districtNameUpper = cityName.toUpperCase();
 
-    // Generate Gap 30 PDF
-    const gap30Rows = buildGap30Rows(start, end);
-    const pdf30 = new jsPDF({
-      unit: 'mm',
-      format: 'a4',
-      orientation: 'portrait',
-    });
+    try {
+      // Generate Gap 30 PDF
+      const gap30Rows = buildGap30Rows(startNum, endNum);
+      const pdf30 = new jsPDF({
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait',
+      });
 
-    let yPos = 10;
-    pdf30.setFontSize(12);
-    gap30Rows.forEach((row) => {
-      if (yPos > 270) {
-        pdf30.addPage();
-        yPos = 10;
-      }
-      pdf30.text(row, 10, yPos);
-      yPos += 8;
-    });
+      let yPos = 10;
+      pdf30.setFontSize(12);
+      gap30Rows.forEach((row) => {
+        if (yPos > 270) {
+          pdf30.addPage();
+          yPos = 10;
+        }
+        pdf30.text(row, 10, yPos);
+        yPos += 8;
+      });
 
-    saveAs(pdf30.output('blob'), `series_gap30_${start}-${end}.pdf`);
+      saveAs(pdf30.output('blob'), `series_gap30_${startNum.replace(/\//g, '_')}.pdf`);
 
-    // Generate Gap 180 PDF
-    const gap180Rows = buildGap180Rows(start, end, districtNameUpper);
-    const pdf180 = new jsPDF({
-      unit: 'mm',
-      format: 'a4',
-      orientation: 'portrait',
-    });
+      // Generate Gap 180 PDF
+      const gap180Rows = buildGap180Rows(startNum, endNum, districtNameUpper);
+      const pdf180 = new jsPDF({
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait',
+      });
 
-    yPos = 10;
-    pdf180.setFontSize(12);
-    gap180Rows.forEach((rowContent) => {
-      if (yPos > 270) {
-        pdf180.addPage();
-        yPos = 10;
-      }
-      // Remove quotes and split lines for proper formatting
-      const lines = rowContent.replace(/^"|"$/g, '').split('\n');
-      lines.forEach((line) => {
+      yPos = 10;
+      pdf180.setFontSize(12);
+      gap180Rows.forEach((rowContent) => {
         if (yPos > 270) {
           pdf180.addPage();
           yPos = 10;
         }
-        pdf180.text(line, 10, yPos);
-        yPos += 8;
+        // Remove quotes and split lines for proper formatting
+        const lines = rowContent.replace(/^"|"$/g, '').split('\n');
+        lines.forEach((line) => {
+          if (yPos > 270) {
+            pdf180.addPage();
+            yPos = 10;
+          }
+          pdf180.text(line, 10, yPos);
+          yPos += 8;
+        });
+        yPos += 4; // Extra space between entries
       });
-      yPos += 4; // Extra space between entries
-    });
 
-    saveAs(pdf180.output('blob'), `series_gap180_${start}-${end}_${districtNameUpper}.pdf`);
+      saveAs(pdf180.output('blob'), `series_gap180_${startNum.replace(/\//g, '_')}_${districtNameUpper}.pdf`);
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   const ready = startNum !== '' && endNum !== '' && cityName.trim() !== '';
@@ -317,11 +363,10 @@ function RangeGenerator() {
           Starting Number
         </label>
         <input
-          type="number"
-          min="0"
+          type="text"
           value={startNum}
           onChange={(e) => setStartNum(e.target.value)}
-          placeholder="e.g. 160001"
+          placeholder="e.g. 160011 or 19/A/160011"
           style={inputStyle}
         />
       </div>
@@ -339,11 +384,10 @@ function RangeGenerator() {
           Ending Number
         </label>
         <input
-          type="number"
-          min="0"
+          type="text"
           value={endNum}
           onChange={(e) => setEndNum(e.target.value)}
-          placeholder="e.g. 163000"
+          placeholder="e.g. 163000 or 19/A/163000"
           style={inputStyle}
         />
       </div>
@@ -395,9 +439,7 @@ function RangeGenerator() {
           textAlign: 'center',
         }}
       >
-        File 1 (Gap 30) — ranges: start - start+30 &nbsp;·&nbsp; File 2
-        (Gap 180) — district name (UPPERCASE), cell numbers (1/N, 2/N...) with
-        ranges
+        Supports numeric (160011) or alphanumeric (19/A/160011) format · Gap logic applied to numbers after last "/" or full number · File 2 includes district name (UPPERCASE), cell numbers (1/N, 2/N...) with ranges
       </p>
     </div>
   );
